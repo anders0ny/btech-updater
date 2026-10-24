@@ -21,31 +21,25 @@ jobs:
       - name: 3. Descompactar arquivos (caso tenha subido como .zip)
         run: |
           if ls *.zip 1> /dev/null 2>&1; then
-            echo "Arquivo ZIP encontrado, descompactando arquivos do projeto..."
+            echo "Descompactando projeto..."
             unzip -o *.zip || true
           fi
 
-      - name: 4. Instalar ferramentas e pacotes oficiais do Switch
-        run: |
-          dkp-pacman -Syu --noconfirm
-          dkp-pacman -S --noconfirm switch-libnx switch-borealis switch-curl switch-mbedtls switch-zlib cmake make git
-
-      - name: 5. Clonar framework gráfico Borealis (se necessário)
+      - name: 4. Baixar Borealis (Framework Gráfico Horizon OS)
         run: |
           if [ ! -d "borealis" ]; then
-            echo "Clonando Borealis..."
             git clone --depth 1 https://github.com/natinusala/borealis.git borealis || true
           fi
 
-      - name: 6. Compilar btech-updater.nro
+      - name: 5. Compilar btech-updater.nro
         run: |
           mkdir -p build && cd build
           cmake .. -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake || cmake ..
           make -j$(nproc)
-          echo "Arquivos compilados:"
+          echo "Compilação concluída:"
           ls -lh
 
-      - name: 7. Publicar btech-updater.nro para Download
+      - name: 6. Disponibilizar btech-updater.nro para Download
         uses: actions/upload-artifact@v4
         with:
           name: btech-updater-nro
