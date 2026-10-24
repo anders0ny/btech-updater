@@ -83,32 +83,6 @@ jobs:
               drawRect(fb, stride, x + w - thick, y, thick, h, color);
           }
 
-          void drawChar(u32* fb, u32 stride, int x, int y, char c, u32 color, int scale) {
-              // Desenha caracteres com blocos escalonados para visualizacao nitida em 720p
-              if (c < 32 || c > 126) c = '?';
-              for (int r = 0; r < 7; r++) {
-                  for (int col = 0; col < 5; col++) {
-                      bool on = ((c - 32 + r * 3) ^ (col * 5)) & 1; // Rasterizador rapido
-                      if (c == ' ') on = false;
-                      if (on) drawRect(fb, stride, x + col * scale, y + r * scale, scale, scale, color);
-                  }
-              }
-          }
-
-          void drawString(u32* fb, u32 stride, int x, int y, const char* str, u32 color, int scale) {
-              int curX = x, curY = y;
-              while (*str) {
-                  if (*str == '\n') { curX = x; curY += 12 * scale; }
-                  else {
-                      // Renderiza letras padrao simples
-                      drawRect(fb, stride, curX, curY, 6 * scale, 8 * scale, color);
-                      drawRect(fb, stride, curX + scale, curY + scale, 4 * scale, 6 * scale, COLOR_CARD);
-                      curX += 8 * scale;
-                  }
-                  str++;
-              }
-          }
-
           int main(int argc, char* argv[]) {
               socketInitializeDefault();
               PadState pad;
@@ -123,31 +97,35 @@ jobs:
               bool showModal = false;
               int progressAnim = 0;
 
-              const char* tabNames[TAB_COUNT] = { "Inicio", "Avisos", "Homebrews", "Ports", "Membros VIP", "Creditos" };
-
               while (appletMainLoop()) {
                   padUpdate(&pad);
                   u64 kDown = padGetButtonsDown(&pad);
 
+                  // (+) Sai para o Horizon OS
                   if (kDown & HidNpadButton_Plus) break;
 
                   if (showModal) {
                       if (kDown & (HidNpadButton_A | HidNpadButton_B)) showModal = false;
                   } else {
-                      if (kDown & (HidNpadButton_L | HidNpadButton_Left | HidNpadButton_StickLeft)) {
+                      // Troca de Abas com L / R ou D-Pad ou Analógico Esquerdo/Direito
+                      if (kDown & (HidNpadButton_L | HidNpadButton_Left | HidNpadButton_StickLLeft | HidNpadButton_StickRLeft)) {
                           currentTab = (currentTab - 1 + TAB_COUNT) % TAB_COUNT;
                           selectedIndex = 0;
                       }
-                      if (kDown & (HidNpadButton_R | HidNpadButton_Right | HidNpadButton_StickRight)) {
+                      if (kDown & (HidNpadButton_R | HidNpadButton_Right | HidNpadButton_StickLRight | HidNpadButton_StickRRight)) {
                           currentTab = (currentTab + 1) % TAB_COUNT;
                           selectedIndex = 0;
                       }
-                      if (kDown & (HidNpadButton_Up | HidNpadButton_StickUp)) {
+
+                      // Navegação de Itens com D-Pad ou Analógico Cima/Baixo
+                      if (kDown & (HidNpadButton_Up | HidNpadButton_StickLUp | HidNpadButton_StickRUp)) {
                           if (selectedIndex > 0) selectedIndex--;
                       }
-                      if (kDown & (HidNpadButton_Down | HidNpadButton_StickDown)) {
+                      if (kDown & (HidNpadButton_Down | HidNpadButton_StickLDown | HidNpadButton_StickRDown)) {
                           if (selectedIndex < 5) selectedIndex++;
                       }
+
+                      // Botão (A) abre o modal de sincronização
                       if (kDown & HidNpadButton_A) {
                           showModal = true;
                           progressAnim = 0;
@@ -164,8 +142,8 @@ jobs:
                   // 2. Barra Superior (Header)
                   drawRect(frame, stride, 0, 0, SCREEN_WIDTH, 70, COLOR_HEADER);
                   drawRect(frame, stride, 0, 68, SCREEN_WIDTH, 2, COLOR_ACCENT_CYAN);
-                  drawRect(frame, stride, 30, 20, 180, 30, COLOR_ACCENT_CYAN); // Logo BTech
-                  drawRect(frame, stride, 950, 20, 280, 30, COLOR_CARD); // Status Wi-Fi
+                  drawRect(frame, stride, 30, 20, 180, 30, COLOR_ACCENT_CYAN);
+                  drawRect(frame, stride, 950, 20, 280, 30, COLOR_CARD);
 
                   // 3. Barra Lateral (Sidebar com Abas)
                   drawRect(frame, stride, 20, 85, 230, 560, COLOR_SIDEBAR);
@@ -184,23 +162,20 @@ jobs:
                   drawRectOutline(frame, stride, contentX, contentY, contentW, contentH, COLOR_BORDER, 1);
 
                   if (currentTab == TAB_INICIO) {
-                      // Banner de Boas-vindas
                       drawRect(frame, stride, contentX + 25, contentY + 25, contentW - 50, 140, COLOR_CARD);
                       drawRectOutline(frame, stride, contentX + 25, contentY + 25, contentW - 50, 140, COLOR_ACCENT_CYAN, 2);
 
-                      // Botões de Ação Rápida
                       drawRect(frame, stride, contentX + 25, contentY + 190, 450, 150, COLOR_CARD);
                       drawRectOutline(frame, stride, contentX + 25, contentY + 190, 450, 150, COLOR_BORDER, 1);
                       drawRect(frame, stride, contentX + 505, contentY + 190, 450, 150, COLOR_CARD);
                       drawRectOutline(frame, stride, contentX + 505, contentY + 190, 450, 150, COLOR_BORDER, 1);
                   } else {
-                      // Lista de Itens com Seleção Interativa
                       for (int i = 0; i < 6; i++) {
                           int cardY = contentY + 30 + i * 80;
                           bool isSel = (i == selectedIndex);
                           drawRect(frame, stride, contentX + 25, cardY, contentW - 50, 68, isSel ? COLOR_CARD_HOVER : COLOR_CARD);
                           drawRectOutline(frame, stride, contentX + 25, cardY, contentW - 50, 68, isSel ? COLOR_ACCENT_CYAN : COLOR_BORDER, isSel ? 2 : 1);
-                          if (isSel) drawRect(frame, stride, contentX + 15, cardY + 24, 6, 20, COLOR_ACCENT_CYAN); // Indicador
+                          if (isSel) drawRect(frame, stride, contentX + 15, cardY + 24, 6, 20, COLOR_ACCENT_CYAN);
                       }
                   }
 
@@ -210,14 +185,13 @@ jobs:
 
                   // 6. Modal Popup ao Pressionar (A)
                   if (showModal) {
-                      drawRect(frame, stride, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0xAA000000); // Fundo escuro
+                      drawRect(frame, stride, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0xAA000000);
                       int modalW = 600, modalH = 260;
                       int modalX = (SCREEN_WIDTH - modalW) / 2;
                       int modalY = (SCREEN_HEIGHT - modalH) / 2;
                       drawRect(frame, stride, modalX, modalY, modalW, modalH, COLOR_SIDEBAR);
                       drawRectOutline(frame, stride, modalX, modalY, modalW, modalH, COLOR_ACCENT_CYAN, 3);
 
-                      // Barra de Progresso Animada
                       if (progressAnim < 520) progressAnim += 12;
                       drawRect(frame, stride, modalX + 40, modalY + 110, 520, 24, COLOR_CARD);
                       drawRect(frame, stride, modalX + 40, modalY + 110, progressAnim, 24, COLOR_ACCENT_CYAN);
@@ -253,7 +227,7 @@ jobs:
           elf2nro build/btech-updater.elf btech-updater.nro \
             --nacp=build/btech-updater.nacp \
             --icon=romfs/icon.png
-          echo "Sucesso! Arquivo NRO gerado:"
+          echo "Compilação concluída com sucesso! Arquivo gerado:"
           ls -lh btech-updater.nro
 
       - name: 6. Disponibilizar btech-updater.nro para Download
