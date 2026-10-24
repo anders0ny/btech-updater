@@ -1,36 +1,55 @@
-# This is a basic workflow to help you get started with Actions
+name: Compilar BTech Switch Updater (.NRO)
 
-name: CI
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
+    name: Compilar btech-updater.nro
     runs-on: ubuntu-latest
+    container: devkitpro/devkita64:latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: 1. Baixar repositório
+        uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: 2. Liberar permissões do Git
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          git config --global --add safe.directory "*"
+
+      - name: 3. Descompactar arquivos (caso tenha subido como .zip)
+        run: |
+          if ls *.zip 1> /dev/null 2>&1; then
+            echo "Arquivo ZIP encontrado, descompactando arquivos do projeto..."
+            unzip -o *.zip || true
+          fi
+
+      - name: 4. Instalar ferramentas e pacotes oficiais do Switch
+        run: |
+          dkp-pacman -Syu --noconfirm
+          dkp-pacman -S --noconfirm switch-libnx switch-borealis switch-curl switch-mbedtls switch-zlib cmake make git
+
+      - name: 5. Clonar framework gráfico Borealis (se necessário)
+        run: |
+          if [ ! -d "borealis" ]; then
+            echo "Clonando Borealis..."
+            git clone --depth 1 https://github.com/natinusala/borealis.git borealis || true
+          fi
+
+      - name: 6. Compilar btech-updater.nro
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake || cmake ..
+          make -j$(nproc)
+          echo "Arquivos compilados:"
+          ls -lh
+
+      - name: 7. Publicar btech-updater.nro para Download
+        uses: actions/upload-artifact@v4
+        with:
+          name: btech-updater-nro
+          path: |
+            build/*.nro
+            *.nro
+          if-no-files-found: error
