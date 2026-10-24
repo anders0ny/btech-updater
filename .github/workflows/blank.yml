@@ -1,4 +1,4 @@
-name: Compilar BTech Switch Updater (.NRO)
+name: Compilar BTech Switch Updater Gráfico (Borealis)
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    name: Compilar btech-updater.nro
+    name: Compilar btech-updater.nro (Interface Gráfica Horizon OS)
     runs-on: ubuntu-latest
     container: devkitpro/devkita64:latest
 
@@ -18,101 +18,157 @@ jobs:
         run: |
           git config --global --add safe.directory "*"
 
-      - name: 3. Preparar Arquivos
+      - name: 3. Baixar Framework Gráfico Borealis
         run: |
-          # Descompacta zip se houver
-          if ls *.zip 1> /dev/null 2>&1; then
-            unzip -o *.zip || true
+          export PATH="/opt/devkitpro/devkitA64/bin:/opt/devkitpro/tools/bin:$PATH"
+          export DEVKITPRO=/opt/devkitpro
+
+          if [ ! -d "borealis/library" ]; then
+            echo "Baixando motor gráfico Borealis..."
+            rm -rf borealis
+            git clone --depth 1 --recursive https://github.com/natinusala/borealis.git borealis
           fi
 
           mkdir -p source romfs
+          curl -sL "https://raw.githubusercontent.com/libnx/libnx/master/icon.png" -o romfs/icon.png || true
 
-          # Ícone padrão
-          if [ ! -f "romfs/icon.png" ]; then
-            curl -sL "https://raw.githubusercontent.com/libnx/libnx/master/icon.png" -o romfs/icon.png || true
-          fi
-
-          # Código-fonte oficial em C++ com libnx
-          if [ ! -f "source/main.cpp" ]; then
-            cat << 'EOF' > source/main.cpp
+      - name: 4. Criar Código Gráfico com Menus do Horizon OS
+        run: |
+          cat << 'EOF' > source/main.cpp
+          #include <borealis.hpp>
           #include <switch.h>
           #include <curl/curl.h>
-          #include <stdio.h>
-          #include <stdlib.h>
+
+          using namespace brls::literals;
+
+          class MainTab : public brls::Box {
+          public:
+              MainTab() {
+                  this->setOrientation(brls::BoxOrientation::VERTICAL);
+                  this->setPadding(24, 24, 24, 24);
+
+                  brls::Label* title = new brls::Label();
+                  title->setText("BTech Games Switch Hub");
+                  title->setFontSize(26);
+                  title->setTextColor(nvgRGB(0, 180, 216));
+                  this->addView(title);
+
+                  brls::Label* sub = new brls::Label();
+                  sub->setText("Centralizador oficial de Homebrews, Lojas, Ports e Membros VIP");
+                  sub->setFontSize(14);
+                  sub->setTextColor(nvgRGB(148, 163, 184));
+                  sub->setMarginTop(8);
+                  this->addView(sub);
+
+                  brls::Label* serverInfo = new brls::Label();
+                  serverInfo->setText("Servidor: https://btechgames.com\nFeed Wi-Fi ativo para o Nintendo Switch");
+                  serverInfo->setFontSize(12);
+                  serverInfo->setTextColor(nvgRGB(16, 185, 129));
+                  serverInfo->setMarginTop(16);
+                  this->addView(serverInfo);
+
+                  brls::Button* syncBtn = new brls::Button();
+                  syncBtn->setText("Sincronizar com btechgames.com (A)");
+                  syncBtn->setMarginTop(24);
+                  syncBtn->registerClickAction([](brls::View* view) {
+                      brls::Application::notify("Catálogo BTech Games sincronizado com sucesso!");
+                      return true;
+                  });
+                  this->addView(syncBtn);
+              }
+          };
 
           int main(int argc, char* argv[]) {
-              consoleInit(NULL);
               socketInitializeDefault();
 
-              printf("\x1b[1;36m==================================================\x1b[0m\n");
-              printf("\x1b[1;33m         BTech Games Switch Homebrew Hub          \x1b[0m\n");
-              printf("\x1b[1;36m==================================================\x1b[0m\n\n");
-              printf("Servidor oficial: \x1b[32mhttps://btechgames.com\x1b[0m\n\n");
-              printf("Pressione [A] para sincronizar homebrews via Wi-Fi\n");
-              printf("Pressione [+] para voltar ao menu do Switch\n\n");
-
-              PadState pad;
-              padConfigureInput(1, HidNpadStyleSet_NpadStandard);
-              padInitializeDefault(&pad);
-
-              while (appletMainLoop()) {
-                  padUpdate(&pad);
-                  u64 kDown = padGetButtonsDown(&pad);
-
-                  if (kDown & HidNpadButton_Plus) break;
-
-                  if (kDown & HidNpadButton_A) {
-                      printf("\x1b[32m[SUCESSO]\x1b[0m Conectado com sucesso ao btechgames.com!\n");
-                  }
-
-                  consoleUpdate(NULL);
+              // Inicializa a interface gráfica nativa do Nintendo Switch
+              if (!brls::Application::init()) {
+                  return EXIT_FAILURE;
               }
 
+              brls::Application::enableDebuggingView(false);
+
+              // Cria a tela com Menu Lateral (Sidebar)
+              brls::AppletFrame* applet = new brls::AppletFrame(true, true);
+              applet->setTitle("BTech Switch Hub");
+
+              // Adiciona as abas laterais idênticas ao simulador
+              applet->addTab("Início", new MainTab());
+              applet->addTab("Avisos", new brls::Label(brls::Label::DIALOG, "Mural de Comunicados Oficiais BTech Games"));
+              applet->addTab("Homebrews", new brls::Label(brls::Label::DIALOG, "Lojas, Emuladores e Utilitários"));
+              applet->addTab("Ports", new brls::Label(brls::Label::DIALOG, "Ports de Jogos Nativos"));
+              applet->addTab("Membros VIP", new brls::Label(brls::Label::DIALOG, "Área Exclusiva com Validação YouTube"));
+              applet->addTab("Créditos", new brls::Label(brls::Label::DIALOG, "Criado para BTech Games por Anderson"));
+
+              brls::Application::pushActivity(new brls::Activity(applet));
+
+              while (brls::Application::mainLoop()) {}
+
               socketExit();
-              consoleExit(NULL);
-              return 0;
+              return EXIT_SUCCESS;
           }
           EOF
-          fi
 
-      - name: 4. Compilar NRO com devkitA64 e elf2nro
+      - name: 5. Configurar CMake do Borealis
         run: |
-          # Adiciona o compilador ao PATH
+          cat << 'EOF' > CMakeLists.txt
+          cmake_minimum_required(VERSION 3.13)
+          project(btech-updater CXX)
+
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+          list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/borealis/library/cmake")
+          list(APPEND CMAKE_MODULE_PATH "/opt/devkitpro/cmake")
+
+          set(PLATFORM_SWITCH ON CACHE BOOL "Build for Switch" FORCE)
+
+          add_subdirectory(borealis)
+
+          add_executable(btech-updater source/main.cpp)
+
+          target_include_directories(btech-updater PRIVATE
+              include
+              borealis/library/include
+              /opt/devkitpro/libnx/include
+              /opt/devkitpro/portlibs/switch/include
+          )
+
+          target_link_libraries(btech-updater PRIVATE
+              borealis
+              -lnx
+              -lcurl
+              -lmbedtls
+              -lmbedcrypto
+              -lmbedx509
+              -lz
+          )
+
+          nx_create_nro(btech-updater
+              NAME "BTech Switch Updater"
+              AUTHOR "BTech Games"
+              VERSION "2.1.0"
+              ICON "romfs/icon.png"
+              ROMFS "romfs"
+          )
+          EOF
+
+      - name: 6. Compilar Interface Gráfica Borealis (60 FPS)
+        run: |
           export PATH="/opt/devkitpro/devkitA64/bin:/opt/devkitpro/tools/bin:$PATH"
           export DEVKITPRO=/opt/devkitpro
-          export DEVKITA64=/opt/devkitpro/devkitA64
 
-          echo "Localização das ferramentas:"
-          which aarch64-none-elf-g++
-          which elf2nro
+          mkdir -p build && cd build
+          cmake -DPLATFORM_SWITCH=ON -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
+          make -j$(nproc)
+          echo "Compilação concluída! Tamanho do aplicativo gráfico:"
+          ls -lh *.nro || ls -lh build/*.nro
 
-          # Compila o binário nativo ARM64
-          aarch64-none-elf-g++ -O2 -std=gnu++17 -fPIE \
-            -I/opt/devkitpro/libnx/include \
-            -I/opt/devkitpro/portlibs/switch/include \
-            -specs=/opt/devkitpro/libnx/switch.specs \
-            source/main.cpp \
-            -L/opt/devkitpro/libnx/lib \
-            -L/opt/devkitpro/portlibs/switch/lib \
-            -lnx -lcurl -lmbedtls -lmbedcrypto -lmbedx509 -lz \
-            -o btech-updater.elf
-
-          # Cria os metadados do Switch (Nome e Autor)
-          nacptool --create "BTech Switch Updater" "BTech Games" "2.1.0" btech-updater.nacp
-
-          # Gera o arquivo oficial btech-updater.nro
-          if [ -f "romfs/icon.png" ]; then
-            elf2nro btech-updater.elf btech-updater.nro --icon=romfs/icon.png --nacp=btech-updater.nacp
-          else
-            elf2nro btech-updater.elf btech-updater.nro --nacp=btech-updater.nacp
-          fi
-
-          echo "Compilação concluída com sucesso! Arquivo gerado:"
-          ls -lh btech-updater.nro
-
-      - name: 5. Publicar btech-updater.nro para Download
+      - name: 7. Publicar btech-updater.nro para Download
         uses: actions/upload-artifact@v4
         with:
           name: btech-updater-nro
-          path: btech-updater.nro
+          path: |
+            build/*.nro
+            *.nro
           if-no-files-found: error
