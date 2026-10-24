@@ -18,66 +18,21 @@ jobs:
         run: |
           git config --global --add safe.directory "*"
 
-      - name: 3. Preparar Arquivos do Projeto
+      - name: 3. Preparar Arquivos
         run: |
           # Descompacta zip se houver
           if ls *.zip 1> /dev/null 2>&1; then
             unzip -o *.zip || true
           fi
 
-          # Se o CMakeLists.txt estiver em subpasta, move para a raiz
-          CMAKEPATH=$(find . -maxdepth 3 -name "CMakeLists.txt" ! -path "./borealis/*" | head -n 1)
-          if [ -n "$CMAKEPATH" ] && [ "$CMAKEPATH" != "./CMakeLists.txt" ]; then
-            SUBDIR=$(dirname "$CMAKEPATH")
-            cp -r "$SUBDIR"/* . || true
+          mkdir -p source romfs
+
+          # Ícone padrão
+          if [ ! -f "romfs/icon.png" ]; then
+            curl -sL "https://raw.githubusercontent.com/libnx/libnx/master/icon.png" -o romfs/icon.png || true
           fi
 
-          mkdir -p source romfs include
-
-          # Gera o CMakeLists oficial com o caminho exato do devkitPro
-          cat << 'EOF' > CMakeLists.txt
-          cmake_minimum_required(VERSION 3.13)
-          project(btech-updater CXX)
-
-          set(CMAKE_CXX_STANDARD 17)
-          set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-          list(APPEND CMAKE_MODULE_PATH "/opt/devkitpro/cmake")
-          find_package(Libnx REQUIRED)
-
-          add_executable(btech-updater source/main.cpp)
-
-          target_include_directories(btech-updater PRIVATE
-              include
-              ${LIBNX_INCLUDE_DIRS}
-              /opt/devkitpro/libnx/include
-              /opt/devkitpro/portlibs/switch/include
-          )
-
-          target_link_directories(btech-updater PRIVATE
-              /opt/devkitpro/libnx/lib
-              /opt/devkitpro/portlibs/switch/lib
-          )
-
-          target_link_libraries(btech-updater PRIVATE
-              ${LIBNX_LIBRARIES}
-              -lnx
-              -lcurl
-              -lmbedtls
-              -lmbedcrypto
-              -lmbedx509
-              -lz
-          )
-
-          nx_create_nro(btech-updater
-              NAME "BTech Switch Updater"
-              AUTHOR "BTech Games"
-              VERSION "2.1.0"
-              ICON "romfs/icon.png"
-              ROMFS "romfs"
-          )
-          EOF
-
+          # Código-fonte oficial em C++ com libnx
           if [ ! -f "source/main.cpp" ]; then
             cat << 'EOF' > source/main.cpp
           #include <switch.h>
@@ -89,12 +44,12 @@ jobs:
               consoleInit(NULL);
               socketInitializeDefault();
 
-              printf("\x1b[1;36m========================================\x1b[0m\n");
-              printf("\x1b[1;33m       BTech Switch Homebrew Hub        \x1b[0m\n");
-              printf("\x1b[1;36m========================================\x1b[0m\n\n");
+              printf("\x1b[1;36m==================================================\x1b[0m\n");
+              printf("\x1b[1;33m         BTech Games Switch Homebrew Hub          \x1b[0m\n");
+              printf("\x1b[1;36m==================================================\x1b[0m\n\n");
               printf("Servidor: \x1b[32mhttps://btechgames.com\x1b[0m\n\n");
-              printf("[A] Sincronizar Homebrews e Ports via Wi-Fi\n");
-              printf("[+] Sair para o Homebrew Launcher\n\n");
+              printf("Pressione [A] para sincronizar homebrews via Wi-Fi\n");
+              printf("Pressione [+] para voltar ao menu do Switch\n\n");
 
               PadState pad;
               padConfigureInput(1, HidNpadStyleSet_NpadStandard);
@@ -107,7 +62,7 @@ jobs:
                   if (kDown & HidNpadButton_Plus) break;
 
                   if (kDown & HidNpadButton_A) {
-                      printf("\x1b[32m[OK]\x1b[0m Feed sincronizado com btechgames.com!\n");
+                      printf("\x1b[32m[SUCESSO]\x1b[0m Conectado com sucesso ao btechgames.com!\n");
                   }
 
                   consoleUpdate(NULL);
@@ -120,23 +75,31 @@ jobs:
           EOF
           fi
 
-          if [ ! -f "romfs/icon.png" ]; then
-            curl -sL "https://raw.githubusercontent.com/libnx/libnx/master/icon.png" -o romfs/icon.png || true
-          fi
-
-      - name: 4. Compilar btech-updater.nro
+      - name: 4. Compilar NRO com devkitA64 e elf2nro
         run: |
-          mkdir -p build && cd build
-          cmake -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake -DCMAKE_MODULE_PATH=/opt/devkitpro/cmake ..
-          make -j$(nproc)
-          echo "Compilação concluída:"
-          ls -lh
+          # 1. Compila o binário nativo ARM64 usando o compilador da Nintendo
+          aarch64-none-elf-g++ -O2 -std=gnu++17 -fPIE \
+            -I/opt/devkitpro/libnx/include \
+            -I/opt/devkitpro/portlibs/switch/include \
+            -specs=/opt/devkitpro/libnx/switch.specs \
+            source/main.cpp \
+            -L/opt/devkitpro/libnx/lib \
+            -L/opt/devkitpro/portlibs/switch/lib \
+            -lnx -lcurl -lmbedtls -lmbedcrypto -lmbedx509 -lz \
+            -o btech-updater.elf
+
+          # 2. Cria metadados do aplicativo (Nome, Autor, Versão)
+          nacptool --create "BTech Switch Updater" "BTech Games" "2.1.0" btech-updater.nacp
+
+          # 3. Gera o arquivo btech-updater.nro oficial executável
+          elf2nro btech-updater.elf btech-updater.nro --icon=romfs/icon.png --nacp=btech-updater.nacp
+
+          echo "Compilação concluída com sucesso! Arquivo gerado:"
+          ls -lh btech-updater.nro
 
       - name: 5. Publicar btech-updater.nro para Download
         uses: actions/upload-artifact@v4
         with:
           name: btech-updater-nro
-          path: |
-            build/*.nro
-            *.nro
+          path: btech-updater.nro
           if-no-files-found: error
