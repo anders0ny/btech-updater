@@ -18,15 +18,15 @@ jobs:
         run: |
           git config --global --add safe.directory "*"
 
-      - name: 3. Baixar Framework Gráfico Borealis
+      - name: 3. Baixar Framework Gráfico Borealis Completo
         run: |
           export PATH="/opt/devkitpro/devkitA64/bin:/opt/devkitpro/tools/bin:$PATH"
           export DEVKITPRO=/opt/devkitpro
 
           if [ ! -d "borealis/library" ]; then
-            echo "Baixando motor gráfico Borealis..."
+            echo "Baixando Borealis e submódulos gráficos..."
             rm -rf borealis
-            git clone --depth 1 --recursive https://github.com/natinusala/borealis.git borealis
+            git clone --recursive https://github.com/natinusala/borealis.git borealis
           fi
 
           mkdir -p source romfs
@@ -123,7 +123,8 @@ jobs:
 
           set(PLATFORM_SWITCH ON CACHE BOOL "Build for Switch" FORCE)
 
-          add_subdirectory(borealis)
+          # Aponta diretamente para a subpasta da biblioteca
+          add_subdirectory(borealis/library)
 
           add_executable(btech-updater source/main.cpp)
 
@@ -153,7 +154,7 @@ jobs:
           )
           EOF
 
-      - name: 6. Compilar Interface Gráfica Borealis (60 FPS)
+      - name: 6. Compilar Interface Gráfica Borealis
         run: |
           export PATH="/opt/devkitpro/devkitA64/bin:/opt/devkitpro/tools/bin:$PATH"
           export DEVKITPRO=/opt/devkitpro
@@ -161,7 +162,7 @@ jobs:
           mkdir -p build && cd build
           cmake -DPLATFORM_SWITCH=ON -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
           make -j$(nproc)
-          echo "Compilação concluída! Tamanho do aplicativo gráfico:"
+          echo "Compilação concluída! Tamanho do executável gráfico:"
           ls -lh *.nro || ls -lh build/*.nro
 
       - name: 7. Publicar btech-updater.nro para Download
