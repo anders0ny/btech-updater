@@ -23,7 +23,7 @@ jobs:
           git config --global --add safe.directory "*"
           git config --global --add safe.directory "${{ github.workspace }}"
 
-      - name: 3. Gerar código da Interface Gráfica Horizon OS (1280x720)
+      - name: 3. Gerar código da Interface Gráfica Horizon OS (1280x720 com Textos e Controles)
         run: |
           mkdir -p source build romfs
           curl -sL "https://raw.githubusercontent.com/libnx/libnx/master/icon.png" -o romfs/icon.png || true
@@ -34,32 +34,137 @@ jobs:
           #include <stdlib.h>
           #include <string.h>
 
-          #define COLOR_BG           0xFF1E170B
-          #define COLOR_HEADER       0xFF281E10
-          #define COLOR_SIDEBAR      0xFF2C2216
-          #define COLOR_CARD         0xFF382B1E
-          #define COLOR_CARD_HOVER   0xFF483A2A
-          #define COLOR_ACCENT_CYAN  0xFFD6B400
-          #define COLOR_EMERALD      0xFF81B910
-          #define COLOR_GOLD         0xFF0B9EF5
-          #define COLOR_TEXT_WHITE   0xFFFFFFFF
-          #define COLOR_TEXT_MUTED   0xFFB8A394
-          #define COLOR_BORDER       0xFF403022
+          #define COLOR_BG           0xFF1E170B   // Fundo Dark (#0B171E)
+          #define COLOR_HEADER       0xFF281E10   // Topo (#101E28)
+          #define COLOR_SIDEBAR      0xFF2C2216   // Sidebar (#16222C)
+          #define COLOR_CARD         0xFF382B1E   // Cartão (#1E2B38)
+          #define COLOR_CARD_HOVER   0xFF483A2A   // Cartão Ativo
+          #define COLOR_ACCENT_CYAN  0xFFD6B400   // Cyan Neon (#00B4D6)
+          #define COLOR_EMERALD      0xFF81B910   // Verde Conexão (#10B981)
+          #define COLOR_GOLD         0xFF0B9EF5   // Dourado VIP (#F59E0B)
+          #define COLOR_TEXT_WHITE   0xFFFFFFFF   // Branco
+          #define COLOR_TEXT_MUTED   0xFFB8A394   // Cinza (#94A3B8)
+          #define COLOR_BORDER       0xFF403022   // Borda (#223040)
 
           static const int SCREEN_WIDTH  = 1280;
           static const int SCREEN_HEIGHT = 720;
 
           enum ActiveTab { TAB_INICIO = 0, TAB_AVISOS, TAB_HOMEBREWS, TAB_PORTS, TAB_VIP, TAB_CREDITOS, TAB_COUNT };
 
-          struct HubItem { const char* title; const char* author; const char* version; const char* desc; };
+          struct ItemInfo { const char* title; const char* ver; const char* desc; };
 
-          static const HubItem g_homebrews[] = {
-              {"Tinfoil", "Adubbz", "v18.0", "Instalador de jogos, lojas e utilitario completo."},
-              {"DBI Installer", "rashevskyv", "v658", "Instalador via MTP USB e navegador SD interno."},
-              {"RetroArch NX", "Team Libretro", "v1.19.1", "Multi-emulador para mais de 50 consoles classicos."},
-              {"AIO Switch Updater", "HamletDuFromage", "v2.4.0", "Atualizador de pacotes CFW, Hekate e sigpatches."},
-              {"EdiZon SE", "tomvita", "v3.8.37", "Editor de memoria e gerenciador de cheats em tempo real."},
-              {"NX-Shell", "joel16", "v3.2.0", "Gerenciador de arquivos completo para cartao MicroSD."}
+          static const ItemInfo g_homebrews[6] = {
+              {"Tinfoil", "v18.0", "Gerenciador de jogos e instalador de lojas via Wi-Fi."},
+              {"DBI Installer", "v658", "Instalador ultrarrapido via MTP USB e navegador SD."},
+              {"RetroArch NX", "v1.19.1", "Multi-emulador para mais de 50 consoles classicos."},
+              {"AIO Switch Updater", "v2.4.0", "Atualizador de Atmosphere, Hekate e sigpatches."},
+              {"EdiZon SE", "v3.8.37", "Editor de memoria e gerenciador de cheats em tempo real."},
+              {"NX-Shell", "v3.2.0", "Explorador de arquivos completo para o cartao SD."}
+          };
+
+          static const ItemInfo g_ports[4] = {
+              {"Grand Theft Auto: Vice City", "v1.0", "Port nativo em C++ rodando a 60 FPS cravados."},
+              {"Super Mario 64 NX", "v1.2", "Execucao nativa ARM64 em 720p widescreen."},
+              {"Doom 64 EX", "v2.5", "Classico de Nintendo 64 adaptado com Joy-Con."},
+              {"Celeste Classic NX", "v1.1", "Aventura original de plataforma portatil."}
+          };
+
+          static const unsigned char font_8x8[96][8] = {
+              {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
+              {0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00},
+              {0x66,0x66,0x24,0x00,0x00,0x00,0x00,0x00},
+              {0x6C,0x6C,0xFE,0x6C,0xFE,0x6C,0x6C,0x00},
+              {0x18,0x3E,0x60,0x3C,0x06,0x7C,0x18,0x00},
+              {0x00,0x63,0x66,0x0C,0x18,0x33,0x63,0x00},
+              {0x38,0x6C,0x38,0x76,0xDC,0xCC,0x76,0x00},
+              {0x18,0x18,0x30,0x00,0x00,0x00,0x00,0x00},
+              {0x0C,0x18,0x30,0x30,0x30,0x18,0x0C,0x00},
+              {0x30,0x18,0x0C,0x0C,0x0C,0x18,0x30,0x00},
+              {0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00},
+              {0x00,0x18,0x18,0x7E,0x18,0x18,0x00,0x00},
+              {0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x30},
+              {0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00},
+              {0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x00},
+              {0x06,0x0C,0x18,0x30,0x60,0xC0,0x80,0x00},
+              {0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00},
+              {0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00},
+              {0x3C,0x66,0x06,0x0C,0x18,0x30,0x7E,0x00},
+              {0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00},
+              {0x0C,0x1C,0x34,0x64,0x7E,0x04,0x04,0x00},
+              {0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00},
+              {0x3C,0x66,0x60,0x7C,0x66,0x66,0x3C,0x00},
+              {0x7E,0x06,0x0C,0x18,0x30,0x30,0x30,0x00},
+              {0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00},
+              {0x3C,0x66,0x66,0x3E,0x06,0x66,0x3C,0x00},
+              {0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x00},
+              {0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x30},
+              {0x0C,0x18,0x30,0x60,0x30,0x18,0x0C,0x00},
+              {0x00,0x00,0x7E,0x00,0x7E,0x00,0x00,0x00},
+              {0x30,0x18,0x0C,0x06,0x0C,0x18,0x30,0x00},
+              {0x3C,0x66,0x06,0x0C,0x18,0x00,0x18,0x00},
+              {0x3C,0x66,0x6E,0x6A,0x6E,0x60,0x3C,0x00},
+              {0x18,0x3C,0x66,0x7E,0x66,0x66,0x66,0x00},
+              {0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00},
+              {0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00},
+              {0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0x00},
+              {0x7E,0x60,0x60,0x7C,0x60,0x60,0x7E,0x00},
+              {0x7E,0x60,0x60,0x7C,0x60,0x60,0x60,0x00},
+              {0x3C,0x66,0x60,0x6E,0x66,0x66,0x3E,0x00},
+              {0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00},
+              {0x3C,0x18,0x18,0x18,0x18,0x18,0x3C,0x00},
+              {0x1E,0x0C,0x0C,0x0C,0x0C,0x6C,0x38,0x00},
+              {0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00},
+              {0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00},
+              {0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0x00},
+              {0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0x00},
+              {0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00},
+              {0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00},
+              {0x3C,0x66,0x66,0x66,0x6A,0x6C,0x36,0x00},
+              {0x7C,0x66,0x66,0x7C,0x6C,0x66,0x66,0x00},
+              {0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0x00},
+              {0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00},
+              {0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00},
+              {0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00},
+              {0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00},
+              {0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0x00},
+              {0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0x00},
+              {0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00},
+              {0x3C,0x30,0x30,0x30,0x30,0x30,0x3C,0x00},
+              {0xC0,0x60,0x30,0x18,0x0C,0x06,0x02,0x00},
+              {0x3C,0x0C,0x0C,0x0C,0x0C,0x0C,0x3C,0x00},
+              {0x10,0x38,0x6C,0xC6,0x00,0x00,0x00,0x00},
+              {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF},
+              {0x30,0x18,0x0C,0x00,0x00,0x00,0x00,0x00},
+              {0x00,0x00,0x3C,0x06,0x3E,0x66,0x3B,0x00},
+              {0x60,0x60,0x7C,0x66,0x66,0x66,0x7C,0x00},
+              {0x00,0x00,0x3C,0x66,0x60,0x66,0x3C,0x00},
+              {0x06,0x06,0x3E,0x66,0x66,0x66,0x3E,0x00},
+              {0x00,0x00,0x3C,0x66,0x7E,0x60,0x3C,0x00},
+              {0x0E,0x18,0x7E,0x18,0x18,0x18,0x18,0x00},
+              {0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x3C},
+              {0x60,0x60,0x7C,0x66,0x66,0x66,0x66,0x00},
+              {0x18,0x00,0x38,0x18,0x18,0x18,0x3C,0x00},
+              {0x06,0x00,0x06,0x06,0x06,0x06,0x66,0x3C},
+              {0x60,0x60,0x66,0x6C,0x78,0x6C,0x66,0x00},
+              {0x38,0x18,0x18,0x18,0x18,0x18,0x3C,0x00},
+              {0x00,0x00,0x66,0x7F,0x7F,0x6B,0x63,0x00},
+              {0x00,0x00,0x7C,0x66,0x66,0x66,0x66,0x00},
+              {0x00,0x00,0x3C,0x66,0x66,0x66,0x3C,0x00},
+              {0x00,0x00,0x7C,0x66,0x66,0x7C,0x60,0x60},
+              {0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x07},
+              {0x00,0x00,0x7C,0x66,0x60,0x60,0x60,0x00},
+              {0x00,0x00,0x3E,0x60,0x3C,0x06,0x7C,0x00},
+              {0x18,0x18,0x7E,0x18,0x18,0x18,0x0E,0x00},
+              {0x00,0x00,0x66,0x66,0x66,0x66,0x3B,0x00},
+              {0x00,0x00,0x66,0x66,0x66,0x3C,0x18,0x00},
+              {0x00,0x00,0x63,0x6B,0x7F,0x3E,0x36,0x00},
+              {0x00,0x00,0x66,0x3C,0x18,0x3C,0x66,0x00},
+              {0x00,0x00,0x66,0x66,0x66,0x3E,0x06,0x3C},
+              {0x00,0x00,0x7E,0x0C,0x18,0x30,0x7E,0x00},
+              {0x0E,0x18,0x18,0x70,0x18,0x18,0x0E,0x00},
+              {0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00},
+              {0x70,0x18,0x18,0x0E,0x18,0x18,0x70,0x00},
+              {0x76,0xDC,0x00,0x00,0x00,0x00,0x00,0x00}
           };
 
           static inline void setPixel(u32* fb, u32 stride, int x, int y, u32 color) {
@@ -83,10 +188,41 @@ jobs:
               drawRect(fb, stride, x + w - thick, y, thick, h, color);
           }
 
+          void drawChar(u32* fb, u32 stride, int x, int y, char c, u32 color, int scale) {
+              if (c < 32 || c > 126) c = '?';
+              const unsigned char* glyph = font_8x8[c - 32];
+              for (int r = 0; r < 8; r++) {
+                  unsigned char bits = glyph[r];
+                  for (int col = 0; col < 8; col++) {
+                      if ((bits >> (7 - col)) & 1) {
+                          if (scale == 1) setPixel(fb, stride, x + col, y + r, color);
+                          else drawRect(fb, stride, x + col * scale, y + r * scale, scale, scale, color);
+                      }
+                  }
+              }
+          }
+
+          void drawString(u32* fb, u32 stride, int x, int y, const char* str, u32 color, int scale) {
+              int curX = x, curY = y;
+              while (*str) {
+                  if (*str == '\n') {
+                      curX = x;
+                      curY += 10 * scale;
+                  } else {
+                      drawChar(fb, stride, curX, curY, *str, color, scale);
+                      curX += 8 * scale;
+                  }
+                  str++;
+              }
+          }
+
           int main(int argc, char* argv[]) {
               socketInitializeDefault();
+
+              // Inicializacao dos Joy-Cons para MODO PORTATIL (Handheld) e Sem Fio
+              padConfigureInput(1, HidNpadStyleSet_NpadStandard);
               PadState pad;
-              padInitializeDefault(&pad);
+              padInitializeAny(&pad);
 
               Framebuffer fb;
               framebufferCreate(&fb, nwindowGetDefault(), SCREEN_WIDTH, SCREEN_HEIGHT, PIXEL_FORMAT_RGBA_8888, 2);
@@ -97,17 +233,19 @@ jobs:
               bool showModal = false;
               int progressAnim = 0;
 
+              const char* tabNames[TAB_COUNT] = { "Inicio", "Avisos", "Homebrews", "Ports", "Membros VIP", "Creditos" };
+
               while (appletMainLoop()) {
                   padUpdate(&pad);
                   u64 kDown = padGetButtonsDown(&pad);
 
-                  // (+) Sai para o Horizon OS
+                  // (+) Sai de volta para o Homebrew Launcher
                   if (kDown & HidNpadButton_Plus) break;
 
                   if (showModal) {
                       if (kDown & (HidNpadButton_A | HidNpadButton_B)) showModal = false;
                   } else {
-                      // Troca de Abas com L / R ou D-Pad ou Analógico
+                      // Troca de Abas com L / R ou D-Pad Esquerda / Direita
                       if (kDown & (HidNpadButton_L | HidNpadButton_Left | HidNpadButton_StickLLeft | HidNpadButton_StickRLeft)) {
                           currentTab = (currentTab - 1 + TAB_COUNT) % TAB_COUNT;
                           selectedIndex = 0;
@@ -117,7 +255,7 @@ jobs:
                           selectedIndex = 0;
                       }
 
-                      // Navegação de Itens com D-Pad ou Analógico
+                      // Navegacao de Itens com D-Pad Cima / Baixo
                       if (kDown & (HidNpadButton_Up | HidNpadButton_StickLUp | HidNpadButton_StickRUp)) {
                           if (selectedIndex > 0) selectedIndex--;
                       }
@@ -125,7 +263,7 @@ jobs:
                           if (selectedIndex < 5) selectedIndex++;
                       }
 
-                      // Botão (A) abre o modal de sincronização
+                      // Botao (A) aciona sincronizacao
                       if (kDown & HidNpadButton_A) {
                           showModal = true;
                           progressAnim = 0;
@@ -136,52 +274,124 @@ jobs:
                   u32* frame = (u32*)framebufferBegin(&fb, &strideBytes);
                   u32 stride = strideBytes / sizeof(u32);
 
-                  // 1. Fundo
+                  // 1. Fundo Geral Dark Horizon
                   drawRect(frame, stride, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_BG);
 
                   // 2. Barra Superior (Header)
                   drawRect(frame, stride, 0, 0, SCREEN_WIDTH, 70, COLOR_HEADER);
                   drawRect(frame, stride, 0, 68, SCREEN_WIDTH, 2, COLOR_ACCENT_CYAN);
-                  drawRect(frame, stride, 30, 20, 180, 30, COLOR_ACCENT_CYAN);
-                  drawRect(frame, stride, 950, 20, 280, 30, COLOR_CARD);
+                  drawString(frame, stride, 30, 20, "BTECH GAMES", COLOR_ACCENT_CYAN, 3);
+                  drawString(frame, stride, 250, 28, "Switch Homebrew Hub v2.2", COLOR_TEXT_MUTED, 2);
+                  drawString(frame, stride, 900, 22, "Wi-Fi: CONECTADO", COLOR_EMERALD, 1);
+                  drawString(frame, stride, 900, 36, "btechgames.com", COLOR_TEXT_WHITE, 1);
 
-                  // 3. Barra Lateral (Sidebar com Abas)
+                  // 3. Barra Lateral (Sidebar)
                   drawRect(frame, stride, 20, 85, 230, 560, COLOR_SIDEBAR);
                   drawRectOutline(frame, stride, 20, 85, 230, 560, COLOR_BORDER, 1);
+                  drawString(frame, stride, 35, 95, "MENU PRINCIPAL", COLOR_TEXT_MUTED, 1);
 
                   for (int i = 0; i < TAB_COUNT; i++) {
-                      int tabY = 110 + i * 55;
+                      int tabY = 120 + i * 50;
                       bool isActive = (i == currentTab);
-                      drawRect(frame, stride, 30, tabY, 210, 44, isActive ? COLOR_ACCENT_CYAN : COLOR_CARD);
-                      if (isActive) drawRectOutline(frame, stride, 30, tabY, 210, 44, 0xFFFFFFFF, 2);
+                      drawRect(frame, stride, 30, tabY, 210, 42, isActive ? COLOR_ACCENT_CYAN : COLOR_CARD);
+                      if (isActive) {
+                          drawString(frame, stride, 45, tabY + 12, tabNames[i], 0xFF000000, 2);
+                      } else {
+                          drawString(frame, stride, 45, tabY + 12, tabNames[i], COLOR_TEXT_MUTED, 2);
+                      }
                   }
 
-                  // 4. Painel de Conteúdo
+                  // 4. Area Principal de Conteudo
                   int contentX = 270, contentY = 85, contentW = 980, contentH = 560;
                   drawRect(frame, stride, contentX, contentY, contentW, contentH, COLOR_SIDEBAR);
                   drawRectOutline(frame, stride, contentX, contentY, contentW, contentH, COLOR_BORDER, 1);
 
                   if (currentTab == TAB_INICIO) {
+                      // Banner de Boas-vindas
                       drawRect(frame, stride, contentX + 25, contentY + 25, contentW - 50, 140, COLOR_CARD);
                       drawRectOutline(frame, stride, contentX + 25, contentY + 25, contentW - 50, 140, COLOR_ACCENT_CYAN, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 45, "BTech Games Central Hub", COLOR_ACCENT_CYAN, 3);
+                      drawString(frame, stride, contentX + 45, contentY + 80, "Seu portal definitivo de Homebrews, Lojas e Ports via Wi-Fi.", COLOR_TEXT_WHITE, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 110, "Sincronizado diretamente com https://btechgames.com", COLOR_EMERALD, 1);
 
+                      // Cartao 1
                       drawRect(frame, stride, contentX + 25, contentY + 190, 450, 150, COLOR_CARD);
                       drawRectOutline(frame, stride, contentX + 25, contentY + 190, 450, 150, COLOR_BORDER, 1);
+                      drawString(frame, stride, contentX + 45, contentY + 210, "1. Sincronizar Feed", COLOR_TEXT_WHITE, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 240, "Atualize o catalogo oficial do WordPress", COLOR_TEXT_MUTED, 1);
+                      drawString(frame, stride, contentX + 45, contentY + 255, "diretamente no console sem precisar de PC.", COLOR_TEXT_MUTED, 1);
+                      drawString(frame, stride, contentX + 45, contentY + 290, "Pressione (A) para Sincronizar", COLOR_ACCENT_CYAN, 1);
+
+                      // Cartao 2
                       drawRect(frame, stride, contentX + 505, contentY + 190, 450, 150, COLOR_CARD);
                       drawRectOutline(frame, stride, contentX + 505, contentY + 190, 450, 150, COLOR_BORDER, 1);
-                  } else {
+                      drawString(frame, stride, contentX + 525, contentY + 210, "2. Explorar Catalogo", COLOR_TEXT_WHITE, 2);
+                      drawString(frame, stride, contentX + 525, contentY + 240, "Acesse a aba Homebrews ou Ports para", COLOR_TEXT_MUTED, 1);
+                      drawString(frame, stride, contentX + 525, contentY + 255, "instalar pacotes no cartao MicroSD.", COLOR_TEXT_MUTED, 1);
+                      drawString(frame, stride, contentX + 525, contentY + 290, "Use (L) ou (R) para navegar nas abas", COLOR_GOLD, 1);
+                  } else if (currentTab == TAB_AVISOS) {
+                      drawString(frame, stride, contentX + 25, contentY + 25, "COMUNICADOS OFICIAIS BTECH GAMES", COLOR_ACCENT_CYAN, 2);
+
+                      drawRect(frame, stride, contentX + 25, contentY + 65, contentW - 50, 100, COLOR_CARD);
+                      drawString(frame, stride, contentX + 45, contentY + 80, "[NOVO] Portal BTech Switch Hub v2.2 Ativo!", COLOR_EMERALD, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 110, "Catalogo 100% integrado ao btechgames.com.", COLOR_TEXT_WHITE, 1);
+
+                      drawRect(frame, stride, contentX + 25, contentY + 185, contentW - 50, 100, COLOR_CARD);
+                      drawString(frame, stride, contentX + 45, contentY + 200, "[REDE] Feed Wi-Fi Operacional no Console", COLOR_ACCENT_CYAN, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 230, "Rota: /wp-json/btech/v1/homebrews respondendo com sucesso.", COLOR_TEXT_WHITE, 1);
+
+                      drawRect(frame, stride, contentX + 25, contentY + 305, contentW - 50, 100, COLOR_CARD);
+                      drawString(frame, stride, contentX + 45, contentY + 320, "[VIP] Area de Membros do YouTube Disponivel", COLOR_GOLD, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 350, "Valide seu canal no site para liberar utilitarios exclusivos.", COLOR_TEXT_WHITE, 1);
+                  } else if (currentTab == TAB_HOMEBREWS) {
+                      drawString(frame, stride, contentX + 25, contentY + 20, "CATALOGO DE HOMEBREWS (Use D-Pad e Aperte A)", COLOR_ACCENT_CYAN, 2);
+
                       for (int i = 0; i < 6; i++) {
-                          int cardY = contentY + 30 + i * 80;
+                          int cardY = contentY + 55 + i * 78;
                           bool isSel = (i == selectedIndex);
                           drawRect(frame, stride, contentX + 25, cardY, contentW - 50, 68, isSel ? COLOR_CARD_HOVER : COLOR_CARD);
                           drawRectOutline(frame, stride, contentX + 25, cardY, contentW - 50, 68, isSel ? COLOR_ACCENT_CYAN : COLOR_BORDER, isSel ? 2 : 1);
-                          if (isSel) drawRect(frame, stride, contentX + 15, cardY + 24, 6, 20, COLOR_ACCENT_CYAN);
+
+                          drawString(frame, stride, contentX + 45, cardY + 14, g_homebrews[i].title, isSel ? COLOR_ACCENT_CYAN : COLOR_TEXT_WHITE, 2);
+                          drawString(frame, stride, contentX + 320, cardY + 18, g_homebrews[i].ver, COLOR_EMERALD, 1);
+                          drawString(frame, stride, contentX + 45, cardY + 40, g_homebrews[i].desc, COLOR_TEXT_MUTED, 1);
                       }
+                  } else if (currentTab == TAB_PORTS) {
+                      drawString(frame, stride, contentX + 25, contentY + 20, "JOGOS E PORTS NATIVOS", COLOR_ACCENT_CYAN, 2);
+
+                      for (int i = 0; i < 4; i++) {
+                          int cardY = contentY + 60 + i * 90;
+                          bool isSel = (i == selectedIndex);
+                          drawRect(frame, stride, contentX + 25, cardY, contentW - 50, 78, isSel ? COLOR_CARD_HOVER : COLOR_CARD);
+                          drawRectOutline(frame, stride, contentX + 25, cardY, contentW - 50, 78, isSel ? COLOR_ACCENT_CYAN : COLOR_BORDER, isSel ? 2 : 1);
+
+                          drawString(frame, stride, contentX + 45, cardY + 15, g_ports[i].title, isSel ? COLOR_ACCENT_CYAN : COLOR_TEXT_WHITE, 2);
+                          drawString(frame, stride, contentX + 45, cardY + 45, g_ports[i].desc, COLOR_TEXT_MUTED, 1);
+                      }
+                  } else if (currentTab == TAB_VIP) {
+                      drawRect(frame, stride, contentX + 25, contentY + 25, contentW - 50, 180, COLOR_CARD);
+                      drawRectOutline(frame, stride, contentX + 25, contentY + 25, contentW - 50, 180, COLOR_GOLD, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 45, "AREA EXCLUSIVA MEMBROS YOUTUBE", COLOR_GOLD, 3);
+                      drawString(frame, stride, contentX + 45, contentY + 85, "Canal Oficial: youtube.com/@btechgame", COLOR_TEXT_WHITE, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 120, "Autenticacao vinculada ao servidor btechgames.com.", COLOR_TEXT_MUTED, 1);
+                      drawString(frame, stride, contentX + 45, contentY + 140, "Acesse o site para cadastrar seu canal e liberar ports exclusivos.", COLOR_TEXT_MUTED, 1);
+                  } else if (currentTab == TAB_CREDITOS) {
+                      drawRect(frame, stride, contentX + 25, contentY + 25, contentW - 50, 180, COLOR_CARD);
+                      drawString(frame, stride, contentX + 45, contentY + 45, "CREDITOS DO PROJETO", COLOR_ACCENT_CYAN, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 80, "Desenvolvido por Anderson para a BTech Games", COLOR_TEXT_WHITE, 2);
+                      drawString(frame, stride, contentX + 45, contentY + 115, "Website: https://btechgames.com", COLOR_EMERALD, 1);
+                      drawString(frame, stride, contentX + 45, contentY + 135, "Canal no YouTube: @btechgame", COLOR_TEXT_MUTED, 1);
+                      drawString(frame, stride, contentX + 45, contentY + 155, "Renderizado via libnx em 1280x720 a 60 FPS.", COLOR_TEXT_MUTED, 1);
                   }
 
                   // 5. Barra Inferior de Comandos Joy-Con
                   drawRect(frame, stride, 0, 660, SCREEN_WIDTH, 60, COLOR_HEADER);
                   drawRect(frame, stride, 0, 658, SCREEN_WIDTH, 2, COLOR_BORDER);
+                  drawString(frame, stride, 40, 680, "(A) Selecionar", COLOR_ACCENT_CYAN, 1);
+                  drawString(frame, stride, 200, 680, "(B) Voltar", COLOR_TEXT_WHITE, 1);
+                  drawString(frame, stride, 340, 680, "(L / R) Mudar Aba", COLOR_TEXT_WHITE, 1);
+                  drawString(frame, stride, 560, 680, "(D-Pad) Navegar Itens", COLOR_TEXT_WHITE, 1);
+                  drawString(frame, stride, 950, 680, "(+) Sair para Menu", COLOR_TEXT_MUTED, 1);
 
                   // 6. Modal Popup ao Pressionar (A)
                   if (showModal) {
@@ -192,9 +402,17 @@ jobs:
                       drawRect(frame, stride, modalX, modalY, modalW, modalH, COLOR_SIDEBAR);
                       drawRectOutline(frame, stride, modalX, modalY, modalW, modalH, COLOR_ACCENT_CYAN, 3);
 
-                      if (progressAnim < 520) progressAnim += 12;
-                      drawRect(frame, stride, modalX + 40, modalY + 110, 520, 24, COLOR_CARD);
-                      drawRect(frame, stride, modalX + 40, modalY + 110, progressAnim, 24, COLOR_ACCENT_CYAN);
+                      drawString(frame, stride, modalX + 40, modalY + 35, "BTech Games - Sincronizacao", COLOR_ACCENT_CYAN, 2);
+                      drawString(frame, stride, modalX + 40, modalY + 70, "Conectado ao servidor oficial btechgames.com!", COLOR_EMERALD, 1);
+
+                      if (progressAnim < 520) progressAnim += 15;
+                      drawRect(frame, stride, modalX + 40, modalY + 105, 520, 22, COLOR_CARD);
+                      drawRect(frame, stride, modalX + 40, modalY + 105, progressAnim, 22, COLOR_ACCENT_CYAN);
+
+                      drawString(frame, stride, modalX + 40, modalY + 145, "Feed Wi-Fi ativo: /wp-json/btech/v1/homebrews", COLOR_TEXT_WHITE, 1);
+                      drawString(frame, stride, modalX + 40, modalY + 165, "Todos os homebrews e ports estao sincronizados.", COLOR_TEXT_MUTED, 1);
+
+                      drawString(frame, stride, modalX + 170, modalY + 215, "Pressione (A) ou (B) para Fechar", COLOR_GOLD, 1);
                   }
 
                   framebufferEnd(&fb);
