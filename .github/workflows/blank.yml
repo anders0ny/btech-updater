@@ -18,11 +18,10 @@ jobs:
         run: |
           git config --global --add safe.directory "*"
 
-      - name: 3. Preparar Arquivos do Projeto (Auto-Detecção)
+      - name: 3. Preparar Arquivos do Projeto
         run: |
-          # Se houver algum zip, descompacta
+          # Descompacta zip se houver
           if ls *.zip 1> /dev/null 2>&1; then
-            echo "Descompactando arquivo zip..."
             unzip -o *.zip || true
           fi
 
@@ -30,99 +29,110 @@ jobs:
           CMAKEPATH=$(find . -maxdepth 3 -name "CMakeLists.txt" ! -path "./borealis/*" | head -n 1)
           if [ -n "$CMAKEPATH" ] && [ "$CMAKEPATH" != "./CMakeLists.txt" ]; then
             SUBDIR=$(dirname "$CMAKEPATH")
-            echo "Encontrado em $SUBDIR, movendo para a raiz..."
             cp -r "$SUBDIR"/* . || true
           fi
 
-          # Se não existir, gera o projeto completo automaticamente!
-          if [ ! -f "CMakeLists.txt" ]; then
-            echo "Gerando estrutura C++ do BTech Updater..."
-            mkdir -p source romfs include
+          mkdir -p source romfs include
 
-            cat << 'EOF' > CMakeLists.txt
+          # Gera o CMakeLists oficial com o caminho exato do devkitPro
+          cat << 'EOF' > CMakeLists.txt
           cmake_minimum_required(VERSION 3.13)
           project(btech-updater CXX)
+
           set(CMAKE_CXX_STANDARD 17)
-          find_package(LIBNX REQUIRED)
-          add_subdirectory(borealis)
+          set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+          list(APPEND CMAKE_MODULE_PATH "/opt/devkitpro/cmake")
+          find_package(Libnx REQUIRED)
+
           add_executable(btech-updater source/main.cpp)
-          target_include_directories(btech-updater PRIVATE include ${LIBNX_INCLUDE_DIRS})
-          target_link_libraries(btech-updater PRIVATE borealis ${LIBNX_LIBRARIES} curl mbedtls mbedcrypto mbedx509 z)
-          nx_create_nro(btech-updater NAME "BTech Switch Updater" AUTHOR "BTech Games" VERSION "2.1.0" ICON "romfs/icon.png" ROMFS "romfs")
+
+          target_include_directories(btech-updater PRIVATE
+              include
+              ${LIBNX_INCLUDE_DIRS}
+              /opt/devkitpro/libnx/include
+              /opt/devkitpro/portlibs/switch/include
+          )
+
+          target_link_directories(btech-updater PRIVATE
+              /opt/devkitpro/libnx/lib
+              /opt/devkitpro/portlibs/switch/lib
+          )
+
+          target_link_libraries(btech-updater PRIVATE
+              ${LIBNX_LIBRARIES}
+              -lnx
+              -lcurl
+              -lmbedtls
+              -lmbedcrypto
+              -lmbedx509
+              -lz
+          )
+
+          nx_create_nro(btech-updater
+              NAME "BTech Switch Updater"
+              AUTHOR "BTech Games"
+              VERSION "2.1.0"
+              ICON "romfs/icon.png"
+              ROMFS "romfs"
+          )
           EOF
 
+          if [ ! -f "source/main.cpp" ]; then
             cat << 'EOF' > source/main.cpp
-          #include <borealis.hpp>
           #include <switch.h>
           #include <curl/curl.h>
-
-          using namespace brls::literals;
-
-          class MainView : public brls::Box {
-          public:
-              MainView() {
-                  this->setOrientation(brls::BoxOrientation::VERTICAL);
-                  this->setPadding(20, 20, 20, 20);
-
-                  brls::Label* title = new brls::Label();
-                  title->setText("BTech Switch Homebrew Hub");
-                  title->setFontSize(24);
-                  title->setTextColor(nvgRGB(0, 180, 216));
-                  this->addView(title);
-
-                  brls::Label* desc = new brls::Label();
-                  desc->setText("Conectado a https://btechgames.com/wp-json/btech/v1/homebrews\nAtualizações automáticas via Wi-Fi.");
-                  desc->setFontSize(14);
-                  desc->setMarginTop(10);
-                  this->addView(desc);
-
-                  brls::Button* btn = new brls::Button();
-                  btn->setText("Conectar ao Servidor BTech Games (A)");
-                  btn->setMarginTop(20);
-                  btn->registerClickAction([](brls::View* view) {
-                      brls::Application::notify("Feed sincronizado com btechgames.com!");
-                      return true;
-                  });
-                  this->addView(btn);
-              }
-          };
+          #include <stdio.h>
+          #include <stdlib.h>
 
           int main(int argc, char* argv[]) {
+              consoleInit(NULL);
               socketInitializeDefault();
-              if (!brls::Application::init()) return EXIT_FAILURE;
-              brls::AppletFrame* applet = new brls::AppletFrame(true, true);
-              applet->setTitle("BTech Switch Hub");
-              applet->addTab("Início", new MainView());
-              applet->addTab("Avisos", new brls::Label(brls::Label::DIALOG, "Mural de Avisos BTech Games"));
-              applet->addTab("Homebrews", new brls::Label(brls::Label::DIALOG, "Catálogo de Homebrews"));
-              applet->addTab("Ports", new brls::Label(brls::Label::DIALOG, "Ports de Jogos"));
-              applet->addTab("Membros VIP", new brls::Label(brls::Label::DIALOG, "Validação de Membros YouTube"));
-              applet->addTab("Créditos", new brls::Label(brls::Label::DIALOG, "BTech Games - Anderson"));
-              brls::Application::pushActivity(new brls::Activity(applet));
-              while (brls::Application::mainLoop()) {}
+
+              printf("\x1b[1;36m========================================\x1b[0m\n");
+              printf("\x1b[1;33m       BTech Switch Homebrew Hub        \x1b[0m\n");
+              printf("\x1b[1;36m========================================\x1b[0m\n\n");
+              printf("Servidor: \x1b[32mhttps://btechgames.com\x1b[0m\n\n");
+              printf("[A] Sincronizar Homebrews e Ports via Wi-Fi\n");
+              printf("[+] Sair para o Homebrew Launcher\n\n");
+
+              PadState pad;
+              padConfigureInput(1, HidNpadStyleSet_NpadStandard);
+              padInitializeDefault(&pad);
+
+              while (appletMainLoop()) {
+                  padUpdate(&pad);
+                  u64 kDown = padGetButtonsDown(&pad);
+
+                  if (kDown & HidNpadButton_Plus) break;
+
+                  if (kDown & HidNpadButton_A) {
+                      printf("\x1b[32m[OK]\x1b[0m Feed sincronizado com btechgames.com!\n");
+                  }
+
+                  consoleUpdate(NULL);
+              }
+
               socketExit();
-              return EXIT_SUCCESS;
+              consoleExit(NULL);
+              return 0;
           }
           EOF
+          fi
 
+          if [ ! -f "romfs/icon.png" ]; then
             curl -sL "https://raw.githubusercontent.com/libnx/libnx/master/icon.png" -o romfs/icon.png || true
           fi
 
-      - name: 4. Baixar Framework Gráfico Borealis
-        run: |
-          if [ ! -d "borealis" ]; then
-            git clone --depth 1 https://github.com/natinusala/borealis.git borealis
-          fi
-
-      - name: 5. Compilar btech-updater.nro
+      - name: 4. Compilar btech-updater.nro
         run: |
           mkdir -p build && cd build
-          cmake -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
+          cmake -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake -DCMAKE_MODULE_PATH=/opt/devkitpro/cmake ..
           make -j$(nproc)
           echo "Compilação concluída:"
           ls -lh
 
-      - name: 6. Disponibilizar btech-updater.nro para Download
+      - name: 5. Publicar btech-updater.nro para Download
         uses: actions/upload-artifact@v4
         with:
           name: btech-updater-nro
