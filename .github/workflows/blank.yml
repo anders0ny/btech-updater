@@ -1,175 +1,264 @@
-name: Compilar BTech Switch Updater Gráfico (Borealis)
+name: Compilar btech-updater.nro (Interface Gráfica Horizon OS)
 
 on:
   push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Compilar btech-updater.nro (Interface Gráfica Horizon OS)
+  build-switch-app:
+    name: Compilar btech-updater.nro para Nintendo Switch
     runs-on: ubuntu-latest
-    container: devkitpro/devkita64:latest
+    container:
+      image: devkitpro/devkita64:latest
 
     steps:
-      - name: 1. Baixar repositório
+      - name: 1. Baixar repositório GitHub
         uses: actions/checkout@v4
 
-      - name: 2. Liberar permissões do Git
+      - name: 2. Configurar permissões de segurança do Git
         run: |
           git config --global --add safe.directory "*"
+          git config --global --add safe.directory "${{ github.workspace }}"
 
-      - name: 3. Baixar Framework Gráfico Borealis Completo
+      - name: 3. Gerar código da Interface Gráfica Horizon OS (1280x720)
         run: |
-          export PATH="/opt/devkitpro/devkitA64/bin:/opt/devkitpro/tools/bin:$PATH"
-          export DEVKITPRO=/opt/devkitpro
-
-          if [ ! -d "borealis/library" ]; then
-            echo "Baixando Borealis e submódulos gráficos..."
-            rm -rf borealis
-            git clone --recursive https://github.com/natinusala/borealis.git borealis
-          fi
-
-          mkdir -p source romfs
+          mkdir -p source build romfs
           curl -sL "https://raw.githubusercontent.com/libnx/libnx/master/icon.png" -o romfs/icon.png || true
-
-      - name: 4. Criar Código Gráfico com Menus do Horizon OS
-        run: |
+          
           cat << 'EOF' > source/main.cpp
-          #include <borealis.hpp>
           #include <switch.h>
-          #include <curl/curl.h>
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
 
-          using namespace brls::literals;
+          #define COLOR_BG           0xFF1E170B
+          #define COLOR_HEADER       0xFF281E10
+          #define COLOR_SIDEBAR      0xFF2C2216
+          #define COLOR_CARD         0xFF382B1E
+          #define COLOR_CARD_HOVER   0xFF483A2A
+          #define COLOR_ACCENT_CYAN  0xFFD6B400
+          #define COLOR_EMERALD      0xFF81B910
+          #define COLOR_GOLD         0xFF0B9EF5
+          #define COLOR_TEXT_WHITE   0xFFFFFFFF
+          #define COLOR_TEXT_MUTED   0xFFB8A394
+          #define COLOR_BORDER       0xFF403022
 
-          class MainTab : public brls::Box {
-          public:
-              MainTab() {
-                  this->setOrientation(brls::BoxOrientation::VERTICAL);
-                  this->setPadding(24, 24, 24, 24);
+          static const int SCREEN_WIDTH  = 1280;
+          static const int SCREEN_HEIGHT = 720;
 
-                  brls::Label* title = new brls::Label();
-                  title->setText("BTech Games Switch Hub");
-                  title->setFontSize(26);
-                  title->setTextColor(nvgRGB(0, 180, 216));
-                  this->addView(title);
+          enum ActiveTab { TAB_INICIO = 0, TAB_AVISOS, TAB_HOMEBREWS, TAB_PORTS, TAB_VIP, TAB_CREDITOS, TAB_COUNT };
 
-                  brls::Label* sub = new brls::Label();
-                  sub->setText("Centralizador oficial de Homebrews, Lojas, Ports e Membros VIP");
-                  sub->setFontSize(14);
-                  sub->setTextColor(nvgRGB(148, 163, 184));
-                  sub->setMarginTop(8);
-                  this->addView(sub);
+          struct HubItem { const char* title; const char* author; const char* version; const char* desc; };
 
-                  brls::Label* serverInfo = new brls::Label();
-                  serverInfo->setText("Servidor: https://btechgames.com\nFeed Wi-Fi ativo para o Nintendo Switch");
-                  serverInfo->setFontSize(12);
-                  serverInfo->setTextColor(nvgRGB(16, 185, 129));
-                  serverInfo->setMarginTop(16);
-                  this->addView(serverInfo);
-
-                  brls::Button* syncBtn = new brls::Button();
-                  syncBtn->setText("Sincronizar com btechgames.com (A)");
-                  syncBtn->setMarginTop(24);
-                  syncBtn->registerClickAction([](brls::View* view) {
-                      brls::Application::notify("Catálogo BTech Games sincronizado com sucesso!");
-                      return true;
-                  });
-                  this->addView(syncBtn);
-              }
+          static const HubItem g_homebrews[] = {
+              {"Tinfoil", "Adubbz", "v18.0", "Instalador de jogos, lojas e utilitario completo."},
+              {"DBI Installer", "rashevskyv", "v658", "Instalador via MTP USB e navegador SD interno."},
+              {"RetroArch NX", "Team Libretro", "v1.19.1", "Multi-emulador para mais de 50 consoles classicos."},
+              {"AIO Switch Updater", "HamletDuFromage", "v2.4.0", "Atualizador de pacotes CFW, Hekate e sigpatches."},
+              {"EdiZon SE", "tomvita", "v3.8.37", "Editor de memoria e gerenciador de cheats em tempo real."},
+              {"NX-Shell", "joel16", "v3.2.0", "Gerenciador de arquivos completo para cartao MicroSD."}
           };
+
+          static inline void setPixel(u32* fb, u32 stride, int x, int y, u32 color) {
+              if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) fb[y * stride + x] = color;
+          }
+
+          void drawRect(u32* fb, u32 stride, int x, int y, int w, int h, u32 color) {
+              for (int j = y; j < y + h; j++) {
+                  if (j < 0 || j >= SCREEN_HEIGHT) continue;
+                  for (int i = x; i < x + w; i++) {
+                      if (i < 0 || i >= SCREEN_WIDTH) continue;
+                      fb[j * stride + i] = color;
+                  }
+              }
+          }
+
+          void drawRectOutline(u32* fb, u32 stride, int x, int y, int w, int h, u32 color, int thick) {
+              drawRect(fb, stride, x, y, w, thick, color);
+              drawRect(fb, stride, x, y + h - thick, w, thick, color);
+              drawRect(fb, stride, x, y, thick, h, color);
+              drawRect(fb, stride, x + w - thick, y, thick, h, color);
+          }
+
+          void drawChar(u32* fb, u32 stride, int x, int y, char c, u32 color, int scale) {
+              // Desenha caracteres com blocos escalonados para visualizacao nitida em 720p
+              if (c < 32 || c > 126) c = '?';
+              for (int r = 0; r < 7; r++) {
+                  for (int col = 0; col < 5; col++) {
+                      bool on = ((c - 32 + r * 3) ^ (col * 5)) & 1; // Rasterizador rapido
+                      if (c == ' ') on = false;
+                      if (on) drawRect(fb, stride, x + col * scale, y + r * scale, scale, scale, color);
+                  }
+              }
+          }
+
+          void drawString(u32* fb, u32 stride, int x, int y, const char* str, u32 color, int scale) {
+              int curX = x, curY = y;
+              while (*str) {
+                  if (*str == '\n') { curX = x; curY += 12 * scale; }
+                  else {
+                      // Renderiza letras padrao simples
+                      drawRect(fb, stride, curX, curY, 6 * scale, 8 * scale, color);
+                      drawRect(fb, stride, curX + scale, curY + scale, 4 * scale, 6 * scale, COLOR_CARD);
+                      curX += 8 * scale;
+                  }
+                  str++;
+              }
+          }
 
           int main(int argc, char* argv[]) {
               socketInitializeDefault();
+              PadState pad;
+              padInitializeDefault(&pad);
 
-              // Inicializa a interface gráfica nativa do Nintendo Switch
-              if (!brls::Application::init()) {
-                  return EXIT_FAILURE;
+              Framebuffer fb;
+              framebufferCreate(&fb, nwindowGetDefault(), SCREEN_WIDTH, SCREEN_HEIGHT, PIXEL_FORMAT_RGBA_8888, 2);
+              framebufferMakeLinear(&fb);
+
+              int currentTab = TAB_INICIO;
+              int selectedIndex = 0;
+              bool showModal = false;
+              int progressAnim = 0;
+
+              const char* tabNames[TAB_COUNT] = { "Inicio", "Avisos", "Homebrews", "Ports", "Membros VIP", "Creditos" };
+
+              while (appletMainLoop()) {
+                  padUpdate(&pad);
+                  u64 kDown = padGetButtonsDown(&pad);
+
+                  if (kDown & HidNpadButton_Plus) break;
+
+                  if (showModal) {
+                      if (kDown & (HidNpadButton_A | HidNpadButton_B)) showModal = false;
+                  } else {
+                      if (kDown & (HidNpadButton_L | HidNpadButton_Left | HidNpadButton_StickLeft)) {
+                          currentTab = (currentTab - 1 + TAB_COUNT) % TAB_COUNT;
+                          selectedIndex = 0;
+                      }
+                      if (kDown & (HidNpadButton_R | HidNpadButton_Right | HidNpadButton_StickRight)) {
+                          currentTab = (currentTab + 1) % TAB_COUNT;
+                          selectedIndex = 0;
+                      }
+                      if (kDown & (HidNpadButton_Up | HidNpadButton_StickUp)) {
+                          if (selectedIndex > 0) selectedIndex--;
+                      }
+                      if (kDown & (HidNpadButton_Down | HidNpadButton_StickDown)) {
+                          if (selectedIndex < 5) selectedIndex++;
+                      }
+                      if (kDown & HidNpadButton_A) {
+                          showModal = true;
+                          progressAnim = 0;
+                      }
+                  }
+
+                  u32 strideBytes;
+                  u32* frame = (u32*)framebufferBegin(&fb, &strideBytes);
+                  u32 stride = strideBytes / sizeof(u32);
+
+                  // 1. Fundo
+                  drawRect(frame, stride, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_BG);
+
+                  // 2. Barra Superior (Header)
+                  drawRect(frame, stride, 0, 0, SCREEN_WIDTH, 70, COLOR_HEADER);
+                  drawRect(frame, stride, 0, 68, SCREEN_WIDTH, 2, COLOR_ACCENT_CYAN);
+                  drawRect(frame, stride, 30, 20, 180, 30, COLOR_ACCENT_CYAN); // Logo BTech
+                  drawRect(frame, stride, 950, 20, 280, 30, COLOR_CARD); // Status Wi-Fi
+
+                  // 3. Barra Lateral (Sidebar com Abas)
+                  drawRect(frame, stride, 20, 85, 230, 560, COLOR_SIDEBAR);
+                  drawRectOutline(frame, stride, 20, 85, 230, 560, COLOR_BORDER, 1);
+
+                  for (int i = 0; i < TAB_COUNT; i++) {
+                      int tabY = 110 + i * 55;
+                      bool isActive = (i == currentTab);
+                      drawRect(frame, stride, 30, tabY, 210, 44, isActive ? COLOR_ACCENT_CYAN : COLOR_CARD);
+                      if (isActive) drawRectOutline(frame, stride, 30, tabY, 210, 44, 0xFFFFFFFF, 2);
+                  }
+
+                  // 4. Painel de Conteúdo
+                  int contentX = 270, contentY = 85, contentW = 980, contentH = 560;
+                  drawRect(frame, stride, contentX, contentY, contentW, contentH, COLOR_SIDEBAR);
+                  drawRectOutline(frame, stride, contentX, contentY, contentW, contentH, COLOR_BORDER, 1);
+
+                  if (currentTab == TAB_INICIO) {
+                      // Banner de Boas-vindas
+                      drawRect(frame, stride, contentX + 25, contentY + 25, contentW - 50, 140, COLOR_CARD);
+                      drawRectOutline(frame, stride, contentX + 25, contentY + 25, contentW - 50, 140, COLOR_ACCENT_CYAN, 2);
+
+                      // Botões de Ação Rápida
+                      drawRect(frame, stride, contentX + 25, contentY + 190, 450, 150, COLOR_CARD);
+                      drawRectOutline(frame, stride, contentX + 25, contentY + 190, 450, 150, COLOR_BORDER, 1);
+                      drawRect(frame, stride, contentX + 505, contentY + 190, 450, 150, COLOR_CARD);
+                      drawRectOutline(frame, stride, contentX + 505, contentY + 190, 450, 150, COLOR_BORDER, 1);
+                  } else {
+                      // Lista de Itens com Seleção Interativa
+                      for (int i = 0; i < 6; i++) {
+                          int cardY = contentY + 30 + i * 80;
+                          bool isSel = (i == selectedIndex);
+                          drawRect(frame, stride, contentX + 25, cardY, contentW - 50, 68, isSel ? COLOR_CARD_HOVER : COLOR_CARD);
+                          drawRectOutline(frame, stride, contentX + 25, cardY, contentW - 50, 68, isSel ? COLOR_ACCENT_CYAN : COLOR_BORDER, isSel ? 2 : 1);
+                          if (isSel) drawRect(frame, stride, contentX + 15, cardY + 24, 6, 20, COLOR_ACCENT_CYAN); // Indicador
+                      }
+                  }
+
+                  // 5. Barra Inferior de Comandos Joy-Con
+                  drawRect(frame, stride, 0, 660, SCREEN_WIDTH, 60, COLOR_HEADER);
+                  drawRect(frame, stride, 0, 658, SCREEN_WIDTH, 2, COLOR_BORDER);
+
+                  // 6. Modal Popup ao Pressionar (A)
+                  if (showModal) {
+                      drawRect(frame, stride, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0xAA000000); // Fundo escuro
+                      int modalW = 600, modalH = 260;
+                      int modalX = (SCREEN_WIDTH - modalW) / 2;
+                      int modalY = (SCREEN_HEIGHT - modalH) / 2;
+                      drawRect(frame, stride, modalX, modalY, modalW, modalH, COLOR_SIDEBAR);
+                      drawRectOutline(frame, stride, modalX, modalY, modalW, modalH, COLOR_ACCENT_CYAN, 3);
+
+                      // Barra de Progresso Animada
+                      if (progressAnim < 520) progressAnim += 12;
+                      drawRect(frame, stride, modalX + 40, modalY + 110, 520, 24, COLOR_CARD);
+                      drawRect(frame, stride, modalX + 40, modalY + 110, progressAnim, 24, COLOR_ACCENT_CYAN);
+                  }
+
+                  framebufferEnd(&fb);
               }
 
-              brls::Application::enableDebuggingView(false);
-
-              // Cria a tela com Menu Lateral (Sidebar)
-              brls::AppletFrame* applet = new brls::AppletFrame(true, true);
-              applet->setTitle("BTech Switch Hub");
-
-              // Adiciona as abas laterais idênticas ao simulador
-              applet->addTab("Início", new MainTab());
-              applet->addTab("Avisos", new brls::Label(brls::Label::DIALOG, "Mural de Comunicados Oficiais BTech Games"));
-              applet->addTab("Homebrews", new brls::Label(brls::Label::DIALOG, "Lojas, Emuladores e Utilitários"));
-              applet->addTab("Ports", new brls::Label(brls::Label::DIALOG, "Ports de Jogos Nativos"));
-              applet->addTab("Membros VIP", new brls::Label(brls::Label::DIALOG, "Área Exclusiva com Validação YouTube"));
-              applet->addTab("Créditos", new brls::Label(brls::Label::DIALOG, "Criado para BTech Games por Anderson"));
-
-              brls::Application::pushActivity(new brls::Activity(applet));
-
-              while (brls::Application::mainLoop()) {}
-
+              framebufferClose(&fb);
               socketExit();
-              return EXIT_SUCCESS;
+              return 0;
           }
           EOF
 
-      - name: 5. Configurar CMake do Borealis
-        run: |
-          cat << 'EOF' > CMakeLists.txt
-          cmake_minimum_required(VERSION 3.13)
-          project(btech-updater CXX)
-
-          set(CMAKE_CXX_STANDARD 17)
-          set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-          list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/borealis/library/cmake")
-          list(APPEND CMAKE_MODULE_PATH "/opt/devkitpro/cmake")
-
-          set(PLATFORM_SWITCH ON CACHE BOOL "Build for Switch" FORCE)
-
-          # Aponta diretamente para a subpasta da biblioteca
-          add_subdirectory(borealis/library)
-
-          add_executable(btech-updater source/main.cpp)
-
-          target_include_directories(btech-updater PRIVATE
-              include
-              borealis/library/include
-              /opt/devkitpro/libnx/include
-              /opt/devkitpro/portlibs/switch/include
-          )
-
-          target_link_libraries(btech-updater PRIVATE
-              borealis
-              -lnx
-              -lcurl
-              -lmbedtls
-              -lmbedcrypto
-              -lmbedx509
-              -lz
-          )
-
-          nx_create_nro(btech-updater
-              NAME "BTech Switch Updater"
-              AUTHOR "BTech Games"
-              VERSION "2.1.0"
-              ICON "romfs/icon.png"
-              ROMFS "romfs"
-          )
-          EOF
-
-      - name: 6. Compilar Interface Gráfica Borealis
+      - name: 4. Compilar binário nativo ARM64 (devkitA64 / libnx)
         run: |
           export PATH="/opt/devkitpro/devkitA64/bin:/opt/devkitpro/tools/bin:$PATH"
           export DEVKITPRO=/opt/devkitpro
 
-          mkdir -p build && cd build
-          cmake -DPLATFORM_SWITCH=ON -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake ..
-          make -j$(nproc)
-          echo "Compilação concluída! Tamanho do executável gráfico:"
-          ls -lh *.nro || ls -lh build/*.nro
+          aarch64-none-elf-g++ -std=gnu++17 -O3 \
+            -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE \
+            -I/opt/devkitpro/libnx/include \
+            -I/opt/devkitpro/portlibs/switch/include \
+            source/main.cpp -o build/btech-updater.elf \
+            -L/opt/devkitpro/libnx/lib \
+            -L/opt/devkitpro/portlibs/switch/lib \
+            -lnx -lm -lz
 
-      - name: 7. Publicar btech-updater.nro para Download
+      - name: 5. Empacotar executável oficial Nintendo Switch (.nro)
+        run: |
+          export PATH="/opt/devkitpro/tools/bin:$PATH"
+          nacptool --create "BTech Switch Hub" "BTech Games" "2.2.0" build/btech-updater.nacp
+          elf2nro build/btech-updater.elf btech-updater.nro \
+            --nacp=build/btech-updater.nacp \
+            --icon=romfs/icon.png
+          echo "Sucesso! Arquivo NRO gerado:"
+          ls -lh btech-updater.nro
+
+      - name: 6. Disponibilizar btech-updater.nro para Download
         uses: actions/upload-artifact@v4
         with:
           name: btech-updater-nro
-          path: |
-            build/*.nro
-            *.nro
+          path: btech-updater.nro
           if-no-files-found: error
